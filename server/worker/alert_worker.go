@@ -1,0 +1,138 @@
+package worker
+
+import (
+	"context"
+	"fmt"
+	"sync"
+	"time"
+
+	"github.com/alwayson/server/model"
+	"github.com/alwayson/server/service"
+)
+
+type AlertServerRepo interface {
+	UpdateStatus(ctx context.Context, id string, status model.ServerStatus) error
+}
+
+type AlertAlertRepo interface {
+	Insert(ctx context.Context, a *model.Alert) error
+	ResolveByServer(ctx context.Context, serverID string) error
+}
+
+type AlertThresholdRepo interface {
+	Get(ctx context.Context, serverID string) (*model.Threshold, error)
+}
+
+const cooldownDuration = 10 * time.Minute
+
+type AlertWorker struct {
+	serverRepo    AlertServerRepo
+	alertRepo     AlertAlertRepo
+	thresholdRepo AlertThresholdRepo
+	notifier      service.Notifier
+	mu            sync.Mutex
+	lastAlerted   map[string]time.Time
+}
+
+func NewAlertWorker(sr AlertServerRepo, ar AlertAlertRepo, tr AlertThresholdRepo, n service.Notifier) *AlertWorker {
+	return &AlertWorker{
+		serverRepo:    sr,
+		alertRepo:     ar,
+		thresholdRepo: tr,
+		notifier:      n,
+		lastAlerted:   make(map[string]time.Time),
+	}
+}
+
+func (w *AlertWorker) Check(ctx context.Context, server *model.Server, m *model.Metric) {
+	th, err := w.thresholdRepo.Get(ctx, server.ID)
+	if err != nil {
+		return
+	}
+
+	type checkItem struct {
+		metric string
+		value  float64
+		warn   float64
+		crit   float64
+	}
+
+	checks := []checkItem{
+		{"cpu", m.CPU, th.CPUWarning, th.CPUCritical},
+		{"memory", m.Memory, th.MemWarning, th.MemCritical},
+		{"disk", m.Disk, th.DiskWarning, th.DiskCritical},
+	}
+
+	highestStatus := model.StatusNormal
+	for _, c := range checks {
+		var level model.AlertLevel
+		var status model.ServerStatus
+
+		if c.value >= c.crit {
+			level = model.LevelCritical
+			status = model.StatusCritical
+		} else if c.value >= c.warn {
+			level = model.LevelWarning
+			status = model.StatusWarning
+		} else {
+			continue
+		}
+
+		if statusPriority(status) > statusPriority(highestStatus) {
+			highestStatus = status
+		}
+
+		threshold := c.warn
+		if level == model.LevelCritical {
+			threshold = c.crit
+		}
+		msg := fmt.Sprintf("🚨 [AlwaysOn] *%s* - %s %s\n서버: %s\n현재값: %.1f%%\n임계값: %.1f%%",
+			string(level), server.Name, c.metric, server.Host, c.value, threshold,
+		)
+
+		if w.canAlert(server.ID, string(level), c.metric) {
+			_ = w.alertRepo.Insert(ctx, &model.Alert{
+				ServerID: server.ID,
+				Level:    level,
+				Metric:   c.metric,
+				Value:    c.value,
+				Message:  msg,
+			})
+			_ = w.notifier.Send(msg)
+		}
+	}
+
+	if highestStatus == model.StatusNormal && server.Status != model.StatusNormal {
+		_ = w.alertRepo.ResolveByServer(ctx, server.ID)
+		msg := fmt.Sprintf("✅ [AlwaysOn] *%s* 서버가 정상 상태로 복구되었습니다.", server.Name)
+		_ = w.notifier.Send(msg)
+	}
+
+	if highestStatus != server.Status {
+		_ = w.serverRepo.UpdateStatus(ctx, server.ID, highestStatus)
+	}
+}
+
+func (w *AlertWorker) canAlert(serverID, level, metric string) bool {
+	key := serverID + ":" + level + ":" + metric
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	last, exists := w.lastAlerted[key]
+	if !exists || time.Since(last) >= cooldownDuration {
+		w.lastAlerted[key] = time.Now()
+		return true
+	}
+	return false
+}
+
+func statusPriority(s model.ServerStatus) int {
+	switch s {
+	case model.StatusCritical:
+		return 3
+	case model.StatusWarning:
+		return 2
+	case model.StatusNormal:
+		return 1
+	}
+	return 0
+}
