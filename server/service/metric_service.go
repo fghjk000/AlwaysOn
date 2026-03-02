@@ -64,7 +64,7 @@ func (s *MetricService) Process(ctx context.Context, input *MetricInput) (*model
 	}
 
 	if s.alertProcessor != nil {
-		go s.alertProcessor.Check(ctx, server, metric)
+		go s.alertProcessor.Check(context.Background(), server, metric)
 	}
 
 	return metric, nil
