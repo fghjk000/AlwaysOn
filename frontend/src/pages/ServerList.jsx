@@ -13,11 +13,13 @@ export default function ServerList() {
   const [servers, setServers] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [lastUpdated, setLastUpdated] = useState(null)
 
   const fetchServers = async () => {
     try {
       const { data } = await getServers()
       setServers(data)
+      setLastUpdated(new Date())
       setError(null)
     } catch {
       setError('서버 목록을 불러오지 못했습니다.')
@@ -28,7 +30,7 @@ export default function ServerList() {
 
   useEffect(() => {
     fetchServers()
-    const id = setInterval(fetchServers, 10000)
+    const id = setInterval(fetchServers, 5000)
     return () => clearInterval(id)
   }, [])
 
@@ -45,7 +47,11 @@ export default function ServerList() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-bold text-gray-800">서버 모니터링</h1>
-        <span className="text-sm text-gray-400">10초마다 자동 갱신</span>
+        <span className="text-sm text-gray-400">
+          {lastUpdated
+            ? `마지막 갱신: ${lastUpdated.toLocaleTimeString('ko-KR')}`
+            : '갱신 중...'}
+        </span>
       </div>
 
       {error && (

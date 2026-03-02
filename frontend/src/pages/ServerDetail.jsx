@@ -54,7 +54,7 @@ export default function ServerDetail() {
       }
     }
     fetchAll()
-    const interval = setInterval(fetchAll, 10000)
+    const interval = setInterval(fetchAll, 5000)
     return () => clearInterval(interval)
   }, [id, hours])
 
