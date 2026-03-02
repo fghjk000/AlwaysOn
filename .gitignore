@@ -1,0 +1,17 @@
+# Worktrees
+.worktrees/
+
+# Go
+*.exe
+*.test
+*.out
+server/.env
+agent/alwayson-agent
+agent/agent.yaml
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# DB
+pgdata/
