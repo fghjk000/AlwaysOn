@@ -71,3 +71,28 @@ func (r *ServerRepo) Delete(ctx context.Context, id string) error {
 	_, err := r.pool.Exec(ctx, `DELETE FROM servers WHERE id = $1`, id)
 	return err
 }
+
+// FindStale: last_seen이 threshold보다 오래되고 down이 아닌 서버 목록 반환
+func (r *ServerRepo) FindStale(ctx context.Context, threshold time.Duration) ([]model.Server, error) {
+	cutoff := time.Now().Add(-threshold)
+	sql := `
+		SELECT id, name, host, status, last_seen
+		FROM servers
+		WHERE last_seen < $1 AND status != 'down'
+		ORDER BY last_seen ASC`
+	rows, err := r.pool.Query(ctx, sql, cutoff)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var servers []model.Server
+	for rows.Next() {
+		var s model.Server
+		if err := rows.Scan(&s.ID, &s.Name, &s.Host, &s.Status, &s.LastSeen); err != nil {
+			return nil, err
+		}
+		servers = append(servers, s)
+	}
+	return servers, nil
+}
