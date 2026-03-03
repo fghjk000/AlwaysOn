@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 
 	"github.com/alwayson/server/api"
@@ -23,6 +24,11 @@ func main() {
 	notifier := service.NewSlackNotifier(cfg.SlackWebhookURL)
 	alertWorker := worker.NewAlertWorker(serverRepo, alertRepo, thresholdRepo, notifier)
 	metricSvc := service.NewMetricService(serverRepo, metricRepo, alertWorker)
+
+	// Down 감지 워커 시작
+	downDetector := worker.NewDownDetector(serverRepo, alertRepo, notifier)
+	downDetector.Start(context.Background())
+	log.Println("DownDetector 시작 (15초 간격)")
 
 	handlers := &api.Handlers{
 		Metric:  api.NewMetricHandler(metricSvc),
