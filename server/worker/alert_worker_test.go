@@ -18,6 +18,10 @@ func (m *mockAlertRepo) Insert(ctx context.Context, a *model.Alert) error {
 func (m *mockAlertRepo) ResolveByServer(ctx context.Context, serverID string) error {
 	return m.Called(ctx, serverID).Error(0)
 }
+func (m *mockAlertRepo) CanAlert(ctx context.Context, key string, cooldown time.Duration) (bool, error) {
+	args := m.Called(ctx, key, cooldown)
+	return args.Bool(0), args.Error(1)
+}
 
 type mockThresholdRepo struct{ mock.Mock }
 
@@ -48,6 +52,7 @@ func TestAlertWorker_Check_TriggersWarning(t *testing.T) {
 		ServerID: "server-1", CPUWarning: 75, CPUCritical: 90,
 		MemWarning: 80, MemCritical: 95, DiskWarning: 80, DiskCritical: 90,
 	}, nil)
+	alertRepo.On("CanAlert", mock.Anything, mock.Anything, mock.Anything).Return(true, nil)
 	alertRepo.On("Insert", mock.Anything, mock.Anything).Return(nil)
 	serverRepo.On("UpdateStatus", mock.Anything, "server-1", model.StatusWarning).Return(nil)
 	notifier.On("Send", mock.Anything).Return(nil)

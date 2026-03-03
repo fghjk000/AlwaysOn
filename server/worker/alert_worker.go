@@ -3,7 +3,6 @@ package worker
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/alwayson/server/model"
@@ -17,6 +16,7 @@ type AlertServerRepo interface {
 type AlertAlertRepo interface {
 	Insert(ctx context.Context, a *model.Alert) error
 	ResolveByServer(ctx context.Context, serverID string) error
+	CanAlert(ctx context.Context, key string, cooldown time.Duration) (bool, error)
 }
 
 type AlertThresholdRepo interface {
@@ -30,8 +30,6 @@ type AlertWorker struct {
 	alertRepo     AlertAlertRepo
 	thresholdRepo AlertThresholdRepo
 	notifier      service.Notifier
-	mu            sync.Mutex
-	lastAlerted   map[string]time.Time
 }
 
 func NewAlertWorker(sr AlertServerRepo, ar AlertAlertRepo, tr AlertThresholdRepo, n service.Notifier) *AlertWorker {
@@ -40,7 +38,6 @@ func NewAlertWorker(sr AlertServerRepo, ar AlertAlertRepo, tr AlertThresholdRepo
 		alertRepo:     ar,
 		thresholdRepo: tr,
 		notifier:      n,
-		lastAlerted:   make(map[string]time.Time),
 	}
 }
 
@@ -90,16 +87,20 @@ func (w *AlertWorker) Check(ctx context.Context, server *model.Server, m *model.
 			string(level), server.Name, c.metric, server.Host, c.value, threshold,
 		)
 
-		if w.canAlert(server.ID, string(level), c.metric) {
-			_ = w.alertRepo.Insert(ctx, &model.Alert{
-				ServerID: server.ID,
-				Level:    level,
-				Metric:   c.metric,
-				Value:    c.value,
-				Message:  msg,
-			})
-			_ = w.notifier.Send(msg)
+		key := server.ID + ":" + string(level) + ":" + c.metric
+		ok, err := w.alertRepo.CanAlert(ctx, key, cooldownDuration)
+		if err != nil || !ok {
+			continue
 		}
+
+		_ = w.alertRepo.Insert(ctx, &model.Alert{
+			ServerID: server.ID,
+			Level:    level,
+			Metric:   c.metric,
+			Value:    c.value,
+			Message:  msg,
+		})
+		_ = w.notifier.Send(msg)
 	}
 
 	if highestStatus == model.StatusNormal && server.Status != model.StatusNormal {
@@ -111,18 +112,6 @@ func (w *AlertWorker) Check(ctx context.Context, server *model.Server, m *model.
 	if highestStatus != server.Status {
 		_ = w.serverRepo.UpdateStatus(ctx, server.ID, highestStatus)
 	}
-}
-
-func (w *AlertWorker) canAlert(serverID, level, metric string) bool {
-	key := serverID + ":" + level + ":" + metric
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	last, exists := w.lastAlerted[key]
-	if !exists || time.Since(last) >= cooldownDuration {
-		w.lastAlerted[key] = time.Now()
-		return true
-	}
-	return false
 }
 
 func statusPriority(s model.ServerStatus) int {
