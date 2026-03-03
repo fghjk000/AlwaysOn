@@ -53,3 +53,21 @@ func (r *AlertRepo) ResolveByServer(ctx context.Context, serverID string) error 
 	)
 	return err
 }
+
+// CanAlert: key의 마지막 알림 시각이 cooldown보다 오래됐으면 true를 반환하고 시각을 갱신한다.
+// 동시성 안전을 위해 단일 UPSERT로 처리한다.
+func (r *AlertRepo) CanAlert(ctx context.Context, key string, cooldown time.Duration) (bool, error) {
+	cutoff := time.Now().Add(-cooldown)
+	result, err := r.pool.Exec(ctx, `
+		INSERT INTO alert_cooldowns (key, alerted_at)
+		VALUES ($1, NOW())
+		ON CONFLICT (key) DO UPDATE
+		  SET alerted_at = NOW()
+		  WHERE alert_cooldowns.alerted_at < $2
+	`, key, cutoff)
+	if err != nil {
+		return false, err
+	}
+	// RowsAffected == 1이면 INSERT 또는 UPDATE 성공 → 알림 허용
+	return result.RowsAffected() == 1, nil
+}
