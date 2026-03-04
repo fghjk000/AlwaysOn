@@ -21,13 +21,14 @@ type AlertProcessor interface {
 }
 
 type MetricInput struct {
-	Host   string
-	Name   string
-	CPU    float64
-	Memory float64
-	Disk   float64
-	NetIn  int64
-	NetOut int64
+	Host      string
+	Name      string
+	CPU       float64
+	Memory    float64
+	Disk      float64
+	NetIn     int64
+	NetOut    int64
+	Processes []model.ProcessStatus
 }
 
 type MetricService struct {
@@ -50,13 +51,14 @@ func (s *MetricService) Process(ctx context.Context, input *MetricInput) (*model
 	_ = s.serverRepo.UpdateLastSeen(ctx, server.ID, now)
 
 	metric := &model.Metric{
-		Time:     now,
-		ServerID: server.ID,
-		CPU:      input.CPU,
-		Memory:   input.Memory,
-		Disk:     input.Disk,
-		NetIn:    input.NetIn,
-		NetOut:   input.NetOut,
+		Time:      now,
+		ServerID:  server.ID,
+		CPU:       input.CPU,
+		Memory:    input.Memory,
+		Disk:      input.Disk,
+		NetIn:     input.NetIn,
+		NetOut:    input.NetOut,
+		Processes: input.Processes,
 	}
 
 	if err := s.metricRepo.Insert(ctx, metric); err != nil {

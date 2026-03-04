@@ -3,9 +3,10 @@ package api
 import "github.com/gin-gonic/gin"
 
 type Handlers struct {
-	Metric  *MetricHandler
-	ServerH *ServerHandler
-	AlertH  *AlertHandler
+	Metric       *MetricHandler
+	ServerH      *ServerHandler
+	AlertH       *AlertHandler
+	HealthCheckH *HealthCheckHandler
 }
 
 func NewRouter(h *Handlers) *gin.Engine {
@@ -20,6 +21,9 @@ func NewRouter(h *Handlers) *gin.Engine {
 		api.GET("/servers/:id/metrics", h.ServerH.GetMetrics)
 		api.PUT("/servers/:id/thresholds", h.ServerH.UpdateThresholds)
 		api.GET("/alerts", h.AlertH.List)
+		api.GET("/servers/:id/health-checks", h.HealthCheckH.List)
+		api.POST("/servers/:id/health-checks", h.HealthCheckH.Create)
+		api.DELETE("/servers/:id/health-checks/:hid", h.HealthCheckH.Delete)
 	}
 
 	return r
@@ -28,7 +32,7 @@ func NewRouter(h *Handlers) *gin.Engine {
 func corsMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Header("Access-Control-Allow-Origin", "*")
-		c.Header("Access-Control-Allow-Methods", "GET,POST,PUT,OPTIONS")
+		c.Header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
 		c.Header("Access-Control-Allow-Headers", "Content-Type")
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)

@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 
+	"github.com/alwayson/server/model"
 	"github.com/alwayson/server/service"
 	"github.com/gin-gonic/gin"
 )
@@ -16,13 +17,14 @@ func NewMetricHandler(svc *service.MetricService) *MetricHandler {
 }
 
 type metricRequest struct {
-	Host   string  `json:"host" binding:"required"`
-	Name   string  `json:"name"`
-	CPU    float64 `json:"cpu"`
-	Memory float64 `json:"memory"`
-	Disk   float64 `json:"disk"`
-	NetIn  int64   `json:"net_in"`
-	NetOut int64   `json:"net_out"`
+	Host      string                `json:"host" binding:"required"`
+	Name      string                `json:"name"`
+	CPU       float64               `json:"cpu"`
+	Memory    float64               `json:"memory"`
+	Disk      float64               `json:"disk"`
+	NetIn     int64                 `json:"net_in"`
+	NetOut    int64                 `json:"net_out"`
+	Processes []model.ProcessStatus `json:"processes,omitempty"`
 }
 
 func (h *MetricHandler) Receive(c *gin.Context) {
@@ -40,6 +42,7 @@ func (h *MetricHandler) Receive(c *gin.Context) {
 		Host: req.Host, Name: req.Name,
 		CPU: req.CPU, Memory: req.Memory, Disk: req.Disk,
 		NetIn: req.NetIn, NetOut: req.NetOut,
+		Processes: req.Processes,
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
