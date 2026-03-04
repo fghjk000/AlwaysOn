@@ -54,6 +54,19 @@ func (r *AlertRepo) ResolveByServer(ctx context.Context, serverID string) error 
 	return err
 }
 
+// ResolveByServerAndMetric: 특정 서버+metric의 미해결 알림을 resolve하고 영향받은 행 수를 반환한다.
+func (r *AlertRepo) ResolveByServerAndMetric(ctx context.Context, serverID, metric string) (int64, error) {
+	result, err := r.pool.Exec(ctx,
+		`UPDATE alerts SET resolved_at = NOW()
+		 WHERE server_id = $1 AND metric = $2 AND resolved_at IS NULL`,
+		serverID, metric,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 // CanAlert: key의 마지막 알림 시각이 cooldown보다 오래됐으면 true를 반환하고 시각을 갱신한다.
 // 동시성 안전을 위해 단일 UPSERT로 처리한다.
 func (r *AlertRepo) CanAlert(ctx context.Context, key string, cooldown time.Duration) (bool, error) {
