@@ -9,10 +9,11 @@ import (
 )
 
 type AgentConfig struct {
-	ServerURL string `yaml:"server_url"`
-	Host      string `yaml:"host"`
-	Name      string `yaml:"name"`
-	Interval  int    `yaml:"interval_seconds"`
+	ServerURL string   `yaml:"server_url"`
+	Host      string   `yaml:"host"`
+	Name      string   `yaml:"name"`
+	Interval  int      `yaml:"interval_seconds"`
+	Processes []string `yaml:"processes"`
 }
 
 func main() {
@@ -60,6 +61,7 @@ func main() {
 		} else {
 			payload.Host = cfg.Host
 			payload.Name = cfg.Name
+			payload.Processes = CollectProcesses(cfg.Processes)
 			if err := SendWithRetry(cfg.ServerURL, payload); err != nil {
 				log.Printf("[오류] 메트릭 전송 최종 실패: %v", err)
 			} else {

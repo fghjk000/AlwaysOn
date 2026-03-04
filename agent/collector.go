@@ -5,16 +5,23 @@ import (
 	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/shirou/gopsutil/v3/mem"
 	"github.com/shirou/gopsutil/v3/net"
+	"github.com/shirou/gopsutil/v3/process"
 )
 
+type ProcessStatus struct {
+	Name    string `json:"name"`
+	Running bool   `json:"running"`
+}
+
 type MetricPayload struct {
-	Host   string  `json:"host"`
-	Name   string  `json:"name"`
-	CPU    float64 `json:"cpu"`
-	Memory float64 `json:"memory"`
-	Disk   float64 `json:"disk"`
-	NetIn  int64   `json:"net_in"`
-	NetOut int64   `json:"net_out"`
+	Host      string          `json:"host"`
+	Name      string          `json:"name"`
+	CPU       float64         `json:"cpu"`
+	Memory    float64         `json:"memory"`
+	Disk      float64         `json:"disk"`
+	NetIn     int64           `json:"net_in"`
+	NetOut    int64           `json:"net_out"`
+	Processes []ProcessStatus `json:"processes,omitempty"`
 }
 
 func CollectMetrics() (*MetricPayload, error) {
@@ -47,4 +54,25 @@ func CollectMetrics() (*MetricPayload, error) {
 		NetIn:  netIn,
 		NetOut: netOut,
 	}, nil
+}
+
+// CollectProcesses: names 목록의 프로세스 실행 여부를 반환한다.
+func CollectProcesses(names []string) []ProcessStatus {
+	if len(names) == 0 {
+		return nil
+	}
+
+	procs, _ := process.Processes()
+	running := make(map[string]bool, len(procs))
+	for _, p := range procs {
+		if n, err := p.Name(); err == nil {
+			running[n] = true
+		}
+	}
+
+	result := make([]ProcessStatus, len(names))
+	for i, name := range names {
+		result[i] = ProcessStatus{Name: name, Running: running[name]}
+	}
+	return result
 }

@@ -6,6 +6,14 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestCollectProcesses_CurrentProcess(t *testing.T) {
+	result := CollectProcesses([]string{"nonexistent-proc-xyz"})
+
+	assert.Len(t, result, 1)
+	assert.Equal(t, "nonexistent-proc-xyz", result[0].Name)
+	assert.False(t, result[0].Running)
+}
+
 func TestCollectMetrics_ReturnsValidRanges(t *testing.T) {
 	m, err := CollectMetrics()
 	assert.NoError(t, err)
