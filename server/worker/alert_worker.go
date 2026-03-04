@@ -17,6 +17,7 @@ type AlertAlertRepo interface {
 	Insert(ctx context.Context, a *model.Alert) error
 	ResolveByServer(ctx context.Context, serverID string) error
 	CanAlert(ctx context.Context, key string, cooldown time.Duration) (bool, error)
+	ResolveByServerAndMetric(ctx context.Context, serverID, metric string) (int64, error)
 }
 
 type AlertThresholdRepo interface {
@@ -101,6 +102,34 @@ func (w *AlertWorker) Check(ctx context.Context, server *model.Server, m *model.
 			Message:  msg,
 		})
 		_ = w.notifier.Send(msg)
+	}
+
+	// 프로세스 감시
+	for _, ps := range m.Processes {
+		metricKey := "process:" + ps.Name
+		if !ps.Running {
+			key := server.ID + ":critical:" + metricKey
+			ok, err := w.alertRepo.CanAlert(ctx, key, cooldownDuration)
+			if err != nil || !ok {
+				continue
+			}
+			msg := fmt.Sprintf("🚨 [AlwaysOn] 프로세스 미실행\n서버: %s\n프로세스: %s", server.Name, ps.Name)
+			_ = w.alertRepo.Insert(ctx, &model.Alert{
+				ServerID: server.ID,
+				Level:    model.LevelCritical,
+				Metric:   metricKey,
+				Value:    0,
+				Message:  msg,
+			})
+			_ = w.notifier.Send(msg)
+		} else {
+			// 실행 중: 기존 알림 resolve
+			affected, err := w.alertRepo.ResolveByServerAndMetric(ctx, server.ID, metricKey)
+			if err == nil && affected > 0 {
+				msg := fmt.Sprintf("✅ [AlwaysOn] 프로세스 복구\n서버: %s\n프로세스: %s", server.Name, ps.Name)
+				_ = w.notifier.Send(msg)
+			}
+		}
 	}
 
 	if highestStatus == model.StatusNormal && server.Status != model.StatusNormal {
