@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { getServers, getServerMetrics, getAlerts } from '../api/client'
+import { getServers, getServerMetrics, getAlerts, getHealthChecks, createHealthCheck, deleteHealthCheck } from '../api/client'
 import MetricChart from '../components/MetricChart'
 import StatusBadge from '../components/StatusBadge'
 
@@ -37,6 +37,9 @@ export default function ServerDetail() {
   const [alerts, setAlerts]   = useState([])
   const [hours, setHours]     = useState(1)
   const [loading, setLoading] = useState(true)
+  const [healthChecks, setHealthChecks] = useState([])
+  const [showHCForm, setShowHCForm] = useState(false)
+  const [hcForm, setHcForm] = useState({ name: '', type: 'http', target: '', expected_status: 200 })
 
   useEffect(() => {
     const fetchAll = async () => {
@@ -57,6 +60,10 @@ export default function ServerDetail() {
     const interval = setInterval(fetchAll, 5000)
     return () => clearInterval(interval)
   }, [id, hours])
+
+  useEffect(() => {
+    getHealthChecks(id).then(({ data }) => setHealthChecks(data))
+  }, [id])
 
   if (loading) return <div className="text-center py-20 text-gray-400">로딩 중...</div>
   if (!server)  return <div className="text-center py-20 text-gray-400">서버를 찾을 수 없습니다</div>
@@ -81,6 +88,100 @@ export default function ServerDetail() {
           <MetricCard label="디스크" value={latest.disk} />
         </div>
       )}
+
+      {/* 프로세스 상태 */}
+      {latest?.processes?.length > 0 && (
+        <div className="bg-white rounded-lg shadow p-4 mb-4">
+          <h3 className="font-semibold text-gray-700 mb-2">프로세스</h3>
+          <div className="flex flex-wrap gap-2">
+            {latest.processes.map(p => (
+              <span
+                key={p.name}
+                className={`px-3 py-1 rounded-full text-sm font-medium ${
+                  p.running
+                    ? 'bg-green-100 text-green-700'
+                    : 'bg-red-100 text-red-700'
+                }`}
+              >
+                {p.running ? '●' : '○'} {p.name}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 헬스체크 패널 */}
+      <div className="bg-white rounded-lg shadow p-4 mb-4">
+        <div className="flex justify-between items-center mb-2">
+          <h3 className="font-semibold text-gray-700">헬스체크</h3>
+          <button
+            onClick={() => setShowHCForm(!showHCForm)}
+            className="text-sm text-blue-600 hover:underline"
+          >
+            + 추가
+          </button>
+        </div>
+
+        {showHCForm && (
+          <form onSubmit={async (e) => {
+            e.preventDefault()
+            const { data: created } = await createHealthCheck(id, hcForm)
+            setHealthChecks(prev => [...prev, created])
+            setShowHCForm(false)
+            setHcForm({ name: '', type: 'http', target: '', expected_status: 200 })
+          }} className="mb-3 flex gap-2 flex-wrap">
+            <input
+              placeholder="이름 (예: Nginx)"
+              value={hcForm.name}
+              onChange={e => setHcForm(f => ({ ...f, name: e.target.value }))}
+              className="border rounded px-2 py-1 text-sm flex-1"
+              required
+            />
+            <select
+              value={hcForm.type}
+              onChange={e => setHcForm(f => ({ ...f, type: e.target.value }))}
+              className="border rounded px-2 py-1 text-sm"
+            >
+              <option value="http">HTTP</option>
+              <option value="tcp">TCP</option>
+            </select>
+            <input
+              placeholder="http://... 또는 host:port"
+              value={hcForm.target}
+              onChange={e => setHcForm(f => ({ ...f, target: e.target.value }))}
+              className="border rounded px-2 py-1 text-sm flex-1"
+              required
+            />
+            <button type="submit" className="bg-blue-500 text-white px-3 py-1 rounded text-sm">
+              저장
+            </button>
+          </form>
+        )}
+
+        {healthChecks.length === 0 ? (
+          <p className="text-gray-400 text-sm">등록된 헬스체크 없음</p>
+        ) : (
+          <ul className="divide-y">
+            {healthChecks.map(hc => (
+              <li key={hc.id} className="flex justify-between items-center py-1 text-sm">
+                <span>
+                  <span className="font-mono text-gray-500 mr-2">[{hc.type.toUpperCase()}]</span>
+                  {hc.name} — {hc.target}
+                </span>
+                <button
+                  onClick={async () => {
+                    await deleteHealthCheck(id, hc.id)
+                    setHealthChecks(prev => prev.filter(h => h.id !== hc.id))
+                  }}
+                  className="text-red-400 hover:text-red-600 ml-2"
+                >
+                  삭제
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
 
       {/* 조회 범위 선택 */}
       <div className="flex gap-2 mb-4">
