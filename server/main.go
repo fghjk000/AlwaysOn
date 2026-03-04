@@ -30,10 +30,17 @@ func main() {
 	downDetector.Start(context.Background())
 	log.Println("DownDetector 시작 (15초 간격)")
 
+	// HealthCheck 워커 시작
+	healthCheckRepo := repository.NewHealthCheckRepo(pool)
+	healthCheckWorker := worker.NewHealthCheckWorker(healthCheckRepo, alertRepo, notifier)
+	healthCheckWorker.Start(context.Background())
+	log.Println("HealthCheckWorker 시작 (30초 간격)")
+
 	handlers := &api.Handlers{
-		Metric:  api.NewMetricHandler(metricSvc),
-		ServerH: api.NewServerHandler(serverRepo, metricRepo, thresholdRepo),
-		AlertH:  api.NewAlertHandler(alertRepo),
+		Metric:       api.NewMetricHandler(metricSvc),
+		ServerH:      api.NewServerHandler(serverRepo, metricRepo, thresholdRepo),
+		AlertH:       api.NewAlertHandler(alertRepo),
+		HealthCheckH: api.NewHealthCheckHandler(healthCheckRepo),
 	}
 
 	r := api.NewRouter(handlers)
