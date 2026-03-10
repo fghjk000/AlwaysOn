@@ -14,6 +14,7 @@ type AgentConfig struct {
 	Name      string   `yaml:"name"`
 	Interval  int      `yaml:"interval_seconds"`
 	Processes []string `yaml:"processes"`
+	APIKey    string   `yaml:"api_key"`
 }
 
 func main() {
@@ -23,6 +24,7 @@ func main() {
 	cfg.ServerURL = os.Getenv("AGENT_SERVER_URL")
 	cfg.Host = os.Getenv("AGENT_HOST")
 	cfg.Name = os.Getenv("AGENT_NAME")
+	cfg.APIKey = os.Getenv("AGENT_API_KEY")
 
 	// 환경변수가 없으면 YAML 파일 읽기
 	if cfg.ServerURL == "" || cfg.Host == "" {
@@ -62,7 +64,7 @@ func main() {
 			payload.Host = cfg.Host
 			payload.Name = cfg.Name
 			payload.Processes = CollectProcesses(cfg.Processes)
-			if err := SendWithRetry(cfg.ServerURL, payload); err != nil {
+			if err := SendWithRetry(cfg.ServerURL, cfg.APIKey, payload); err != nil {
 				log.Printf("[오류] 메트릭 전송 최종 실패: %v", err)
 			} else {
 				log.Printf("[전송] CPU=%.1f%% MEM=%.1f%% DISK=%.1f%%",

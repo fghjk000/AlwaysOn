@@ -2,6 +2,7 @@ server_url: "http://모니터링서버IP:8080"
 host: "web-server-01"   # 서버 고유 식별자 (중복 불가)
 name: "Web Server 01"   # 대시보드 표시명
 interval_seconds: 5
+api_key: ""             # 서버의 AGENT_API_KEY와 동일하게 설정
 
 # 감시할 프로세스 목록 (없으면 생략)
 processes:

@@ -9,14 +9,23 @@ import (
 	"time"
 )
 
-func SendMetrics(serverURL string, payload *MetricPayload) error {
+func SendMetrics(serverURL, apiKey string, payload *MetricPayload) error {
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return err
 	}
 
 	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Post(serverURL+"/api/metrics", "application/json", bytes.NewBuffer(data))
+	req, err := http.NewRequest("POST", serverURL+"/api/metrics", bytes.NewBuffer(data))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if apiKey != "" {
+		req.Header.Set("X-Agent-Key", apiKey)
+	}
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
@@ -28,12 +37,12 @@ func SendMetrics(serverURL string, payload *MetricPayload) error {
 	return nil
 }
 
-func SendWithRetry(serverURL string, payload *MetricPayload) error {
+func SendWithRetry(serverURL, apiKey string, payload *MetricPayload) error {
 	backoff := time.Second
 	const maxAttempts = 5
 
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		err := SendMetrics(serverURL, payload)
+		err := SendMetrics(serverURL, apiKey, payload)
 		if err == nil {
 			return nil
 		}
