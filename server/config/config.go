@@ -13,6 +13,7 @@ type Config struct {
 	DBName          string
 	ServerPort      string
 	SlackWebhookURL string
+	AgentAPIKey     string
 }
 
 func Load() *Config {
@@ -24,6 +25,7 @@ func Load() *Config {
 		DBName:          getEnv("DB_NAME", "alwayson"),
 		ServerPort:      getEnv("SERVER_PORT", "8080"),
 		SlackWebhookURL: getEnv("SLACK_WEBHOOK_URL", ""),
+		AgentAPIKey:     getEnv("AGENT_API_KEY", ""),
 	}
 }
 
