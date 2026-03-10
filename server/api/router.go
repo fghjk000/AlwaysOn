@@ -7,6 +7,7 @@ type Handlers struct {
 	ServerH      *ServerHandler
 	AlertH       *AlertHandler
 	HealthCheckH *HealthCheckHandler
+	AgentAPIKey  string
 }
 
 func NewRouter(h *Handlers) *gin.Engine {
@@ -15,7 +16,7 @@ func NewRouter(h *Handlers) *gin.Engine {
 
 	api := r.Group("/api")
 	{
-		api.POST("/metrics", h.Metric.Receive)
+		api.POST("/metrics", AgentAuthMiddleware(h.AgentAPIKey), h.Metric.Receive)
 		api.GET("/servers", h.ServerH.List)
 		api.GET("/servers/:id", h.ServerH.Get)
 		api.GET("/servers/:id/metrics", h.ServerH.GetMetrics)
@@ -33,7 +34,7 @@ func corsMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Header("Access-Control-Allow-Origin", "*")
 		c.Header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Content-Type")
+		c.Header("Access-Control-Allow-Headers", "Content-Type,X-Agent-Key")
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
 			return

@@ -41,6 +41,7 @@ func main() {
 		ServerH:      api.NewServerHandler(serverRepo, metricRepo, thresholdRepo),
 		AlertH:       api.NewAlertHandler(alertRepo),
 		HealthCheckH: api.NewHealthCheckHandler(healthCheckRepo),
+		AgentAPIKey:  cfg.AgentAPIKey,
 	}
 
 	r := api.NewRouter(handlers)
